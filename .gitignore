@@ -1,0 +1,65 @@
+# API keys and sensitive data
+.env
+.secrets.toml
+config.py
+credentials.json
+
+# Python cache and artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+venv/
+env/
+.venv/
+venv*/
+
+# Streamlit specific
+.streamlit/
+.streamlit/secrets.toml
+
+# Jupyter and IDE files
+.ipynb_checkpoints/
+.idea/
+.vscode/
+*.ipynb
+*.iml
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+
+# Data files
+*.csv
+*.xlsx
+*.db
+*.sqlite
+*.parquet
+
+# Output files
+*.docx
+*.pdf
+*.png
+*.jpg
+
+# Environment files
+.env.*
+!.env.example
+
+# System files
+*.sys
+*.dll
+*.exe
