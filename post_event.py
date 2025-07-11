@@ -39,7 +39,7 @@ def build_linkedin_post_event_prompt(data, report_content, use_roberta):
         summarized_content = report_content
     
     prompt = f"""
-Generate a post-event content for LinkedIn in the EXACT format below. Use proper line spacing and emojis:
+Generate a LinkedIn post-event content in the EXACT format below. Use proper line spacing and include emojis as indicated.
 
 Event details:
 Title: {data['title']}
@@ -51,37 +51,48 @@ Speakers: {data['speakers']}
 ACM Head: {data['acm_head']}
 Attendance: {data['attendance']}
 
-Format the LinkedIn post-event content EXACTLY like this structure:
+Format the LinkedIn post EXACTLY like this structure:
 
 🎉 {data['title']} - Event Wrap Up! 🎉
 
-📊 Short Report:
-[2-3 lines about attendance, participation, and overall success]
+📊 Short Report:  
+[Write 2-3 lines about attendance, participation, and overall success of the event]
 
-🚀 What Happened:
-[Paragraph about what took place during the event, key highlights, and main activities]
+🚀 What Happened:  
+[Write a paragraph describing what took place during the event, key highlights, and main activities]
 
-📚 Topics Covered:
-[Brief overview of the topics/skills covered during the event]
+📚 Topics Covered:  
+[Briefly overview the topics or skills covered during the event]
 
-💡 Future Impact:
-[How this event will help participants in their future careers/studies]
+💡 Future Impact:  
+[Explain how this event will help participants in their future careers or studies]
 
-📖 Resources: [If any resources were shared, mention them briefly]
+📖 Resources:  
+[Mention if any resources were shared, briefly]
 
-🙏 Special Thanks:
-Huge appreciation to our organizing team: {data['organizing_team']}
+🙏 Special Thanks:  
+Huge appreciation to our organizing team: {data['organizing_team']}  
 And our amazing speakers: {data['speakers']}
 
-🎊 Thank You Attendees:
-[Grateful message to all participants who made this event successful]
+🎊 Thank You Attendees:  
+[Write a grateful message to all participants who made the event successful]
 
-🌟 [Motivational slogan or closing message about learning and growth]
+🌟 [Write a motivational slogan or closing message about learning and growth]
 
-{data['acm_head']}
+{data['acm_head']}  
 Head of PICT ACM Student Chapter
 
-Use these hashtags at the end: {' '.join(PREDEFINED_HASHTAGS)} and add 3-4 relevant ones based on the event topic.
+At the end, add these hashtags: {' '.join(PREDEFINED_HASHTAGS)} plus 3-4 relevant hashtags based on the event topic.
+
+Important:  
+- Keep the tone professional, positive, and engaging.  
+- Use clear, concise language suitable for LinkedIn.  
+- Maintain the exact line breaks and emoji placements as shown.  
+- Do NOT add or remove any sections.  
+- Avoid generic or repetitive phrases; make it specific and lively.
+
+Generate the full post content only, without any explanations or extra text.
+
 """
     return prompt
 
@@ -92,7 +103,7 @@ def build_whatsapp_post_event_prompt(data, report_content, use_roberta):
         summarized_content = report_content
     
     prompt = f"""
-Generate a post-event content for WhatsApp in the EXACT format below:
+Generate a WhatsApp post-event message using the EXACT structure below, with appropriate emojis and a conversational tone.
 
 Event details:
 Title: {data['title']}
@@ -104,18 +115,18 @@ Speakers: {data['speakers']}
 ACM Head: {data['acm_head']}
 Attendance: {data['attendance']}
 
-Format the WhatsApp post-event content EXACTLY like this structure:
+Format the WhatsApp post-event message EXACTLY like this:
 
 🎉 {data['title']} - Successfully Completed! 🎉
 
-📊 [2-3 lines about attendance and event success]
+📊 [Write 2-3 lines about attendance and the overall success of the event. Make it upbeat and positive.]
 
 ✨ Event Highlights:
-[What happened during the event and key moments]
+[Briefly describe what happened during the event and mention any key or memorable moments.]
 
-📚 We covered: [Topics/skills covered]
+📚 We covered: [List the main topics or skills covered, separated by commas.]
 
-🚀 This will help participants in: [Future benefits]
+🚀 This will help participants in: [Explain in 1-2 lines how the event benefits participants in their future studies, careers, or personal growth.]
 
 🙏 Big thanks to:
 • Organizing team: {data['organizing_team']}
@@ -123,9 +134,15 @@ Format the WhatsApp post-event content EXACTLY like this structure:
 
 💫 Thank you to all attendees for making this event amazing!
 
-[Motivational closing message]
+[End with a short, motivational closing message about learning, growth, or community.]
 
-Keep it conversational and use emojis appropriately.
+Important instructions:
+- Keep the tone friendly, conversational, and celebratory.
+- Use emojis as shown and add more if it feels natural.
+- Maintain the exact structure, order, and line breaks.
+- Do NOT add or remove any sections.
+- Output only the WhatsApp message content, nothing else.
+
 """
     return prompt
 
@@ -136,7 +153,7 @@ def build_instagram_post_event_prompt(data, report_content, use_roberta):
         summarized_content = report_content
     
     prompt = f"""
-Generate a post-event content for Instagram with a fun, celebratory, and engaging tone.
+Generate a fun, celebratory, and engaging Instagram post-event caption using the event details below.
 
 Event details:
 Title: {data['title']}
@@ -148,13 +165,24 @@ Speakers: {data['speakers']}
 ACM Head: {data['acm_head']}
 Attendance: {data['attendance']}
 
-Make it fun and engaging with:
-- Celebratory emojis and casual language
-- Brief event recap
-- What was learned/covered
-- Thanks to team and attendees
-- Motivational closing
-- Include these hashtags: {' '.join(PREDEFINED_HASHTAGS)} and add relevant fun ones
+Your Instagram caption MUST include:
+
+🎉 Celebratory emojis and casual, friendly language to create excitement  
+📋 A brief, catchy recap of the event highlighting attendance and key moments  
+📚 What was learned or covered during the event, in a fun and simple way  
+🙌 A warm thank you to the organizing team, speakers, and attendees  
+💪 A motivational closing line encouraging growth, learning, or community spirit  
+#️⃣ Include these hashtags: {' '.join(PREDEFINED_HASHTAGS)} plus 3-4 relevant, fun, and trending hashtags related to the event topic or audience  
+
+Additional instructions:  
+- Keep the tone light, upbeat, and relatable, suitable for Instagram’s audience  
+- Use emojis generously but naturally to enhance engagement  
+- Keep it concise but impactful (around 150-250 words)  
+- Avoid formal language or jargon; make it feel like a friendly celebration post  
+- Output only the Instagram caption text, no extra explanations or formatting  
+
+Generate the full caption now.
+
 """
     return prompt
 
@@ -165,22 +193,25 @@ def build_twitter_post_event_prompt(data, report_content, use_roberta):
         summarized_content = report_content
     
     prompt = f"""
-Generate a post-event content for Twitter (X) - MUST be under {TWITTER_CHAR_LIMIT} characters.
+Generate a celebratory, concise Twitter (X) post (max {TWITTER_CHAR_LIMIT} characters) about the successful completion of the event below. The post MUST:
+
+- Start with an energetic phrase and event title.
+- Highlight a key achievement or memorable moment.
+- Thank the organizing team and speakers by name.
+- Mention attendance (if notable).
+- End with 4 required hashtags: {' '.join(PREDEFINED_HASHTAGS[:4])} and 2-3 relevant trending or event-specific hashtags.
+- Be positive, engaging, and suitable for a public audience.
+- Do NOT include apologies or promises for improvement—focus on celebration and gratitude.
+- Keep it under {TWITTER_CHAR_LIMIT} characters.
 
 Event details:
 Title: {data['title']}
-Report Content: {summarized_content}
+Summary: {summarized_content}
 Date: {data['date']}
 Organizing Team: {data['organizing_team']}
 Speakers: {data['speakers']}
 Attendance: {data['attendance']}
 
-Keep it short, celebratory, and include:
-- Event title completion
-- Brief success note
-- Thanks to team/speakers
-- Key hashtags: {' '.join(PREDEFINED_HASHTAGS[:4])} and 2-3 relevant ones
-- Must be under {TWITTER_CHAR_LIMIT} characters total
 """
     return prompt
 
@@ -277,7 +308,6 @@ if submit:
                 try:
                     prompt = prompt_builder(data, report_content, use_roberta)
                     result = call_groq_api(api_key, prompt)
-                    
                     # Special handling for Twitter character limit
                     if platform_name == "Twitter" and len(result) > TWITTER_CHAR_LIMIT:
                         result = result[:TWITTER_CHAR_LIMIT - 3] + "..."
