@@ -289,4 +289,3 @@ if submit:
 
 # Footer
 st.markdown("---")
-st.markdown("Made with ❤️ for PICT ACM Student Chapter")
