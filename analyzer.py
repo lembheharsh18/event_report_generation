@@ -6,6 +6,7 @@ import nltk
 from groq import Groq
 import re
 from transformers import pipeline
+import concurrent.futures
 
 nltk.download('vader_lexicon', quiet=True)
 
@@ -31,15 +32,72 @@ class FeedbackAnalyzer:
         if not feedback_list:
             return {"error": "No feedback data found"}
 
+        # Filter relevant feedback
+        relevant_feedback = self._filter_relevant_feedback(feedback_list)
+        
         analysis_results = {
             "total_responses": len(feedback_list),
-            "sentiment_analysis": self._perform_sentiment_analysis(feedback_list),
-            "text_analysis": self._perform_text_analysis(feedback_list),
-            "suggestions": self._extract_suggestions(feedback_list),
-            "narrative_summary": self._generate_narrative_summary(feedback_list),
-            "key_takeaways": self._extract_key_takeaways(feedback_list)
+            "relevant_responses": len(relevant_feedback),
+            "sentiment_analysis": self._perform_sentiment_analysis(relevant_feedback),
+            "text_analysis": self._perform_text_analysis(relevant_feedback),
+            "suggestions": self._extract_suggestions(relevant_feedback),
+            "narrative_summary": self._generate_narrative_summary(relevant_feedback),
+            "key_takeaways": self._extract_key_takeaways(relevant_feedback)
         }
         return analysis_results
+
+    def _filter_relevant_feedback(self, feedback_list):
+        """Filter out irrelevant/short feedback using LLM"""
+        if not self.model or len(feedback_list) < 20:
+            return feedback_list
+            
+        chunk_size = 20
+        chunks = [feedback_list[i:i + chunk_size] 
+                 for i in range(0, len(feedback_list), chunk_size)]
+        
+        relevant_feedback = []
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = []
+            for chunk in chunks:
+                futures.append(executor.submit(
+                    self._filter_chunk_relevance, 
+                    chunk
+                ))
+            
+            for future in concurrent.futures.as_completed(futures):
+                relevant_feedback.extend(future.result())
+                
+        return relevant_feedback or feedback_list
+
+    def _filter_chunk_relevance(self, chunk):
+        combined = "\n".join([f"{idx+1}. {fb}" for idx, fb in enumerate(chunk)])
+        prompt = f"""
+Classify each feedback as relevant (1) or irrelevant (0) based on:
+- A feedback item is 'relevant' if it contains specific praise, criticism, or a suggestion.
+- Items like "ok",  "no", "n/a", or very short, generic phrases are 'irrelevant'.
+- Consider good,great,bad,worst as relevant and empty feedbacks as irrelevant(like 'no','none','ok') which doesn't have much significance
+- Mentions specific aspects of the event
+- Provides suggestions or criticisms
+- Length >= 4 words
+
+Return ONLY a comma-separated list of 1/0 values. Example: 1,0,1,1,0
+
+Feedback:
+{combined}
+"""
+        try:
+            response = self.model.chat.completions.create(
+                model="llama3-70b-8192",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1
+            )
+            classifications = response.choices[0].message.content.strip().split(',')
+            return [
+                fb for idx, fb in enumerate(chunk) 
+                if idx < len(classifications) and classifications[idx] == '1'
+            ]
+        except:
+            return chunk
 
     def professionalize_text(self, text):
         """Use LLM to rewrite text professionally while avoiding instruction echoes"""
