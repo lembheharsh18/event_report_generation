@@ -192,27 +192,29 @@ def build_twitter_post_event_prompt(data, report_content, use_roberta):
     else:
         summarized_content = report_content
     
-    prompt = f"""
-Generate a celebratory, concise Twitter (X) post (max {TWITTER_CHAR_LIMIT} characters) about the successful completion of the event below. The post MUST:
-
-- Start with an energetic phrase and event title.
-- Highlight a key achievement or memorable moment.
-- Thank the organizing team and speakers by name.
-- Mention attendance (if notable).
-- End with 4 required hashtags: {' '.join(PREDEFINED_HASHTAGS[:4])} and 2-3 relevant trending or event-specific hashtags.
-- Be positive, engaging, and suitable for a public audience.
-- Do NOT include apologies or promises for improvement—focus on celebration and gratitude.
-- Keep it under {TWITTER_CHAR_LIMIT} characters.
+    prompt = prompt = f"""
+Generate a post-event tweet (X post) under {TWITTER_CHAR_LIMIT} characters total.
 
 Event details:
 Title: {data['title']}
-Summary: {summarized_content}
+Report Summary: {summarized_content}
 Date: {data['date']}
 Organizing Team: {data['organizing_team']}
 Speakers: {data['speakers']}
 Attendance: {data['attendance']}
 
+Tweet MUST include:
+- A short, celebratory wrap-up message.
+- Mention of event title and date.
+- Thank-you note to the organizing team and speakers.
+- ~25-character Instagram post link included in this format: (📸 See more: https://shorturl.at/XXXX)
+- These hashtags: {' '.join(PREDEFINED_HASHTAGS[:4])} 
+- The tone should be energetic, club-friendly, and tweet-length conscious.
+- The total character count (including hashtags and link) MUST be <= {TWITTER_CHAR_LIMIT}.
+- Place the Instagram link toward the end of the tweet.
+- Output only the tweet text. No extra notes or explanations.
 """
+
     return prompt
 
 # ========== GROQ API CALL ========== #
