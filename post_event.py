@@ -1,392 +1,308 @@
 import streamlit as st
 from groq import Groq
-import torch
-from transformers import pipeline
-import textwrap
 from docx import Document
 import io
+import fitz  # PyMuPDF
+import re
 
 # ========== CONFIG ========== #
-TWITTER_CHAR_LIMIT = 280
-PREDEFINED_HASHTAGS = [
-    "#PASC", "#PICT", "#ACM", "#coding", "#tech", "#event", "#learning"
-]
+TWITTER_CHAR_LIMIT = 280  # Updated character limit
+# Generic hashtags, the AI will add specific ones.
+# PREDEFINED_HASHTAGS = [
+#     "#Tech", "#Event", "#Learning", "#Workshop", "#Community", "#SkillDevelopment"
+# ]
 
-# ========== ROBERTA SUMMARIZER ========== #
-@st.cache_resource(show_spinner=False)
-def load_summarizer():
-    return pipeline("summarization", model="sshleifer/distilbart-cnn-12-6")
+# ========== FILE PARSER (SUPPORTS DOCX & PDF) ========== #
+def parse_uploaded_file(uploaded_file):
+    """
+    Extract text from an uploaded file, supporting both DOCX and PDF formats.
+    """
+    try:
+        file_extension = uploaded_file.name.split('.')[-1].lower()
+        
+        if file_extension == 'docx':
+            doc = Document(io.BytesIO(uploaded_file.read()))
+            full_text = [p.text for p in doc.paragraphs if p.text.strip()]
+            for table in doc.tables:
+                for row in table.rows:
+                    for cell in row.cells:
+                        if cell.text.strip():
+                            full_text.append(cell.text.strip())
+            content = '\n'.join(full_text)
 
-def roberta_summarize(text, max_len=130):
-    summarizer = load_summarizer()
-    summary = summarizer(text, max_length=max_len, min_length=30, do_sample=False)
-    return summary[0]['summary_text']
+        elif file_extension == 'pdf':
+            pdf_document = fitz.open(stream=uploaded_file.read(), filetype="pdf")
+            full_text = [page.get_text() for page in pdf_document]
+            content = '\n'.join(full_text)
+            
+        else:
+            return f"Error: Unsupported file type '{file_extension}'. Please upload a DOCX or PDF file."
 
-# ========== DOCX PARSER ========== #
-def parse_docx(uploaded_file):
-    """Extract text from uploaded DOCX file"""
-    doc = Document(io.BytesIO(uploaded_file.read()))
-    full_text = []
-    for paragraph in doc.paragraphs:
-        full_text.append(paragraph.text)
-    return '\n'.join(full_text)
+        if not content.strip():
+            return "Error: Could not extract any text from the document."
+            
+        return content
+        
+    except Exception as e:
+        return f"Error parsing file: {e}. The file might be corrupted."
 
-# ========== PROMPT BUILDERS ========== #
-def build_linkedin_post_event_prompt(data, report_content, use_roberta):
-    if use_roberta and len(report_content) > 200:
-        summarized_content = roberta_summarize(report_content)
-    else:
-        summarized_content = report_content
+# ========== PROMPT BUILDERS (UPGRADED) ========== #
+
+def build_linkedin_post_event_prompt(data, report_content):
+    """
+    Builds a sophisticated prompt that instructs the AI to extract multiple specific sections.
+    """
+    example_style_guide = """
+    **Example of the desired format and tone (do not copy the content, only the style):**
     
+    🌟 Event Name – A Huge Success! 🌟
+
+    We’re thrilled to share that our session "Event Name" saw an amazing turnout with [Number] enthusiastic attendees! 🎉
+
+    💡 **What we covered:**
+    - Point 1 (e.g., Fundamentals of CP)
+    - Point 2 (e.g., Intermediate techniques)
+    - Point 3 (e.g., Advanced tools)
+    - (Up to 8 points total)
+
+    📌 **Highlights:**
+    - A memorable moment from the event.
+    - A unique feature of the session.
+
+    🙌 **What attendees are saying:**
+    - "A summary of positive feedback."
+    - "Another key positive sentiment."
+    
+    A big thank you to all the speakers - [Name 1, Name 2, Name 3] for sharing their valuable insights. 
+    Thank you to the organizing team at [Organization Name] and the participants for making this session a memorable one.
+    Let’s keep learning, sharing, and growing together! 🚀
+
+    [Signature Block]
+
+    #[EventHashtag] #[TopicHashtag] #[CommunityHashtag] #[More Relevant Hashtags]
+    """
+
     prompt = f"""
-Generate a LinkedIn post-event content in the EXACT format below. Use proper line spacing and include emojis as indicated.
+You are an expert social media manager for a student-run tech club. Your task is to create an engaging, professional LinkedIn post by analyzing an event report.
 
-Event details:
-Title: {data['title']}
-Report Content: {summarized_content}
-Date: {data['date']}
-Platform/Venue: {data['platform']}
-Organizing Team: {data['organizing_team']}
-Speakers: {data['speakers']}
-ACM Head: {data['acm_head']}
-Attendance: {data['attendance']}
+**Your Goal:**
+Read the **Full Event Report** provided below and autonomously write a complete social media post that is exciting, professional, and structured.
 
-Format the LinkedIn post EXACTLY like this structure:
+**Instructions:**
+1.  **Analyze the Report**: From the report, you MUST identify and extract information for these three sections:
+    * **What we covered**: A bulleted list of the main topics. **Limit this to 6-8 key points.** Use a 💡 emoji for the heading.
+    * **Highlights**: A short, bulleted list of **2-3 memorable moments** or unique features (e.g., "Personal advice segments," "Real contest experience"). Use a 📌 emoji for the heading.
+    * **Positive Feedback**: A summary of positive feedback from the report, presented as **2-3 short, impactful points.** Use a 🙌 emoji for the heading.
+2.  **Write the Post**:
+    * **Headline**: Start with a powerful, emoji-filled headline.
+    * **Opening**: Write an enthusiastic opening paragraph announcing the event's success, mentioning the event title and attendance.
+    * **Body**: Include the "What we covered," "Highlights," and "Positive Feedback" sections you created.
+    * **Gratitude**: Write a warm "Thank You" paragraph using the names from the **"People to Thank"** section.
+    * **Closing & Signature**: End with a motivational closing line and add the **Signature Block**.
+3.  **Hashtags**: Include the predefined hashtags AND generate 4-5 additional, relevant hashtags.
+4.  **Follow the Style Guide**: Use the provided example as a strict guide for the **style, tone, and structure**.
 
-🎉 {data['title']} - Event Wrap Up! 🎉
+---
+**Information to Incorporate:**
+* **People to Thank (Speakers, Organizers, etc.)**: {data['people_to_thank']}
+* **Signature Block (Heads to Tag)**: {data['signature']}
 
-📊 Short Report:  
-[Write 2-3 lines about attendance, participation, and overall success of the event]
+---
+**Full Event Report to Analyze:**
+{report_content}
+---
+{example_style_guide}
+---
 
-🚀 What Happened:  
-[Write a paragraph describing what took place during the event, key highlights, and main activities]
-
-📚 Topics Covered:  
-[Briefly overview the topics or skills covered during the event]
-
-💡 Future Impact:  
-[Explain how this event will help participants in their future careers or studies]
-
-📖 Resources:  
-[Mention if any resources were shared, briefly]
-
-🙏 Special Thanks:  
-Huge appreciation to our organizing team: {data['organizing_team']}  
-And our amazing speakers: {data['speakers']}
-
-🎊 Thank You Attendees:  
-[Write a grateful message to all participants who made the event successful]
-
-🌟 [Write a motivational slogan or closing message about learning and growth]
-
-{data['acm_head']}  
-Head of PICT ACM Student Chapter
-
-At the end, add these hashtags: {' '.join(PREDEFINED_HASHTAGS)} plus 3-4 relevant hashtags based on the event topic.
-
-Important:  
-- Keep the tone professional, positive, and engaging.  
-- Use clear, concise language suitable for LinkedIn.  
-- Maintain the exact line breaks and emoji placements as shown.  
-- Do NOT add or remove any sections.  
-- Avoid generic or repetitive phrases; make it specific and lively.
-
-Generate the full post content only, without any explanations or extra text.
-
+Now, generate the complete and final LinkedIn post draft.
+Generated post will directly be posted so ensure it is polished, professional, and engaging and in the event organizers prespective.
 """
     return prompt
 
-def build_whatsapp_post_event_prompt(data, report_content, use_roberta):
-    if use_roberta and len(report_content) > 200:
-        summarized_content = roberta_summarize(report_content)
-    else:
-        summarized_content = report_content
-    
+def build_instagram_whatsapp_prompt(platform, data, report_content):
+    tone_instruction = "fun, witty, and highly visual, using plenty of relevant emojis (✨, 🚀, 📸, 🙌)." if platform == "Instagram" else "friendly, celebratory, and clear."
+
     prompt = f"""
-Generate a WhatsApp post-event message using the EXACT structure below, with appropriate emojis and a conversational tone.
+You are a social media manager for a student tech club. Create a {platform} post by analyzing the event report below.
 
-Event details:
-Title: {data['title']}
-Report Content: {summarized_content}
-Date: {data['date']}
-Platform/Venue: {data['platform']}
-Organizing Team: {data['organizing_team']}
-Speakers: {data['speakers']}
-ACM Head: {data['acm_head']}
-Attendance: {data['attendance']}
+**Instructions:**
+1.  **Analyze the Report**: Read the report to find the event title, attendance, and the most exciting highlights.
+2.  **Set the Tone**: The tone must be {tone_instruction}
+3.  **Write the Post**:
+    * Start with a catchy, emoji-filled title.
+    * Write a short, energetic paragraph about the event's success.
+    * Create a bulleted list of 3-5 key highlights or topics covered.
+    * If the report mentions positive feedback, add one or two quotes or summarized points.
+    * Give a big "Thank You" to the people mentioned in the **"People to Thank"** section.
+    * End with a short, motivational closing line.
+4.  **Hashtags (for Instagram)**: If the platform is Instagram, include a mix of community and topic-specific hashtags.
 
-Format the WhatsApp post-event message EXACTLY like this:
+---
+**Information to Incorporate:**
+* **People to Thank**: {data['people_to_thank']}
+* **Signature/Tag**: {data['signature']}
+---
+**Full Event Report to Analyze:**
+{report_content}
+---
 
-🎉 {data['title']} - Successfully Completed! 🎉
-
-📊 [Write 2-3 lines about attendance and the overall success of the event. Make it upbeat and positive.]
-
-✨ Event Highlights:
-[Briefly describe what happened during the event and mention any key or memorable moments.]
-
-📚 We covered: [List the main topics or skills covered, separated by commas.]
-
-🚀 This will help participants in: [Explain in 1-2 lines how the event benefits participants in their future studies, careers, or personal growth.]
-
-🙏 Big thanks to:
-• Organizing team: {data['organizing_team']}
-• Our speakers: {data['speakers']}
-
-💫 Thank you to all attendees for making this event amazing!
-
-[End with a short, motivational closing message about learning, growth, or community.]
-
-Important instructions:
-- Keep the tone friendly, conversational, and celebratory.
-- Use emojis as shown and add more if it feels natural.
-- Maintain the exact structure, order, and line breaks.
-- Do NOT add or remove any sections.
-- Output only the WhatsApp message content, nothing else.
-
+Now, generate the complete {platform} post draft.
+Generated post will directly be posted so ensure it is polished, professional, and engaging and in the event organizers prespective.
 """
     return prompt
 
-def build_instagram_post_event_prompt(data, report_content, use_roberta):
-    if use_roberta and len(report_content) > 200:
-        summarized_content = roberta_summarize(report_content)
-    else:
-        summarized_content = report_content
-    
+def build_twitter_prompt(data, report_content):
     prompt = f"""
-Generate a fun, celebratory, and engaging Instagram post-event caption using the event details below.
-
-Event details:
-Title: {data['title']}
-Report Content: {summarized_content}
-Date: {data['date']}
-Platform/Venue: {data['platform']}
-Organizing Team: {data['organizing_team']}
-Speakers: {data['speakers']}
-ACM Head: {data['acm_head']}
-Attendance: {data['attendance']}
-
-Your Instagram caption MUST include:
-
-🎉 Celebratory emojis and casual, friendly language to create excitement  
-📋 A brief, catchy recap of the event highlighting attendance and key moments  
-📚 What was learned or covered during the event, in a fun and simple way  
-🙌 A warm thank you to the organizing team, speakers, and attendees  
-💪 A motivational closing line encouraging growth, learning, or community spirit  
-#️⃣ Include these hashtags: {' '.join(PREDEFINED_HASHTAGS)} plus 3-4 relevant, fun, and trending hashtags related to the event topic or audience  
-
-Additional instructions:  
-- Keep the tone light, upbeat, and relatable, suitable for Instagram’s audience  
-- Use emojis generously but naturally to enhance engagement  
-- Keep it concise but impactful (around 150-250 words)  
-- Avoid formal language or jargon; make it feel like a friendly celebration post  
-- Output only the Instagram caption text, no extra explanations or formatting  
-
-Generate the full caption now.
-
-"""
-    return prompt
-
-def build_twitter_post_event_prompt(data, report_content, use_roberta):
-    if use_roberta and len(report_content) > 200:
-        summarized_content = roberta_summarize(report_content)
-    else:
-        summarized_content = report_content
-    
-    prompt = prompt = f"""
 Generate a post-event tweet (X post) under {TWITTER_CHAR_LIMIT} characters total.
 
 Event details:
-Title: {data['title']}
-Report Summary: {summarized_content}
-Date: {data['date']}
-Organizing Team: {data['organizing_team']}
-Speakers: {data['speakers']}
-Attendance: {data['attendance']}
+Title: 
+Report Summary: 
+Date: 
+Organizing Team: 
+Speakers: 
+Attendance:
 
 Tweet MUST include:
 - A short, celebratory wrap-up message.
 - Mention of event title and date.
 - Thank-you note to the organizing team and speakers.
 - ~25-character Instagram post link included in this format: (📸 See more: https://shorturl.at/XXXX)
-- These hashtags: {' '.join(PREDEFINED_HASHTAGS[:4])} 
+- Hashtags: 
 - The tone should be energetic, club-friendly, and tweet-length conscious.
 - The total character count (including hashtags and link) MUST be <= {TWITTER_CHAR_LIMIT}.
 - Place the Instagram link toward the end of the tweet.
 - Output only the tweet text. No extra notes or explanations.
+**Full Event Report to Analyze:**
+{report_content}
 """
-
     return prompt
 
-# ========== GROQ API CALL ========== #
-def call_groq_api(api_key, prompt):
-    client = Groq(api_key=api_key)
-    completion = client.chat.completions.create(
-        model="llama3-70b-8192",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.7
-    )
-    return completion.choices[0].message.content.strip()
+# ========== GROQ API & REFINEMENT PROCESS ========== #
+def call_groq_api_with_refinement(api_key, initial_prompt, platform):
+    """
+    Generates a post in a two-step process: first a draft, then a refinement.
+    """
+    try:
+        client = Groq(api_key=api_key)
+        
+        # Step 1: Generate the initial draft
+        draft_completion = client.chat.completions.create(
+            model="llama3-70b-8192",
+            messages=[{"role": "user", "content": initial_prompt}],
+            temperature=0.7,
+            top_p=0.9
+        )
+        draft_post = draft_completion.choices[0].message.content.strip()
+
+        if platform == "Twitter":
+            return draft_post[:TWITTER_CHAR_LIMIT]
+
+        # Step 2: Refine the draft for other platforms
+        refinement_prompt = f"""
+You are an expert social media copy editor. Your task is to polish the following draft for a {platform} post.
+
+**Instructions:**
+1.  **Improve Flow**: Ensure the text flows naturally and is easy to read.
+2.  **Enhance Emojis**: Add engaging and relevant emojis (like 🌟, 🎉, 🚀, ✅, 💡, 📌, 🙌) to make the post visually appealing and professional.
+3.  **Check Professionalism**: Ensure the tone is appropriate for {platform}.
+4.  **Formatting**: Ensure lists are correctly formatted and use bolding for emphasis on key phrases and headings.
+5.  **Do NOT Change Core Information**: Only improve the presentation of the draft.
+
+**Draft to Refine:**
+---
+{draft_post}
+---
+
+Return only the final, polished post.
+Generated post will directly be posted so ensure it is polished, professional, and engaging and in the event organizers prespective.
+"""
+        
+        refined_completion = client.chat.completions.create(
+            model="llama3-70b-8192",
+            messages=[{"role": "user", "content": refinement_prompt}],
+            temperature=0.5,
+        )
+        return refined_completion.choices[0].message.content.strip()
+
+    except Exception as e:
+        st.error(f"An error occurred with the Groq API: {e}")
+        return "Error: Could not generate content."
 
 # ========== STREAMLIT UI ========== #
-st.set_page_config(page_title="PASC Post-Event Content Generator", layout="centered", page_icon="🎉")
-st.title("🎉 PASC Post-Event Content Generator")
-st.markdown("""
-Generate engaging post-event content for LinkedIn, WhatsApp, Instagram, and Twitter (X) by uploading your event report document.
-""")
+st.set_page_config(page_title="Post-Event Content Generator", layout="wide", page_icon="🎉")
+st.title("🎉 AI Post-Event Content Generator")
+st.markdown("Generate high-quality social media content by uploading your event report. The AI will read the report and write the posts for you.")
 
-# API Key Input
-api_key = st.text_input("🔑 Groq API Key", type="password", help="Enter your Groq API key to generate content")
+with st.sidebar:
+    st.header("⚙️ Configuration")
+    api_key = st.text_input("Groq API Key", type="password")
+    st.markdown("---")
+    st.header("📄 Upload Report")
+    uploaded_file = st.file_uploader("Upload Report (DOCX or PDF)", type=['docx', 'pdf'])
 
-# RoBERTa Option
-use_roberta = st.checkbox("Use RoBERTa summarization for long reports", value=True, help="Summarize long reports using RoBERTa model")
+if not uploaded_file:
+    st.info("Please upload your event report in the sidebar to get started.")
+    st.stop()
 
-st.header("📄 Upload Event Report")
+with st.spinner("📖 Reading and analyzing document..."):
+    report_content = parse_uploaded_file(uploaded_file)
 
-# File Upload
-uploaded_file = st.file_uploader("Upload Event Report (DOCX)", type=['docx'], help="Upload your event report document")
+if "Error:" in report_content:
+    st.error(report_content)
+    st.stop()
+else:
+    st.sidebar.success("✅ Report uploaded successfully!")
+    with st.sidebar.expander("📋 Preview Report Content"):
+        st.text_area("Document Text", report_content, height=200, disabled=True, key="report_preview")
 
-if uploaded_file is not None:
-    # Parse the document
-    with st.spinner("📖 Reading document..."):
-        report_content = parse_docx(uploaded_file)
+st.header("✍️ Add Final Details")
+st.caption("Provide the names for acknowledgements. The AI will handle the rest.")
+
+with st.form("final_details_form"):
+    people_to_thank = st.text_area(
+        "Whom to Thank*",
+        placeholder="List the names of speakers, organizers, etc., to be thanked in the post.",
+        height=100
+    )
+    signature = st.text_area(
+        "Signature / Heads to Tag*",
+        placeholder="Enter the signature block, e.g., 'Dr. Geetanjali Kale, ACM India'",
+        height=80
+    )
     
-    st.success("✅ Document uploaded successfully!")
-    
-    # Show preview of content
-    with st.expander("📋 Preview Document Content"):
-        st.text_area("Document Text", report_content, height=200, disabled=True)
-
-st.header("📋 Enter Additional Event Details")
-
-# Event Details Form
-with st.form("post_event_details"):
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        title = st.text_input("Event Title*", placeholder="e.g., CP SIG Workshop")
-        date = st.date_input("Event Date*")
-        attendance = st.text_input("Attendance*", placeholder="e.g., 50+ participants")
-    
-    with col2:
-        platform = st.text_input("Venue/Platform*", placeholder="e.g., A1-311 or MS Teams")
-        acm_head = st.text_input("ACM Head Name*", placeholder="e.g., Dr. Geetanjali Kale")
-    
-    organizing_team = st.text_area("Organizing Team*", placeholder="Names of team members who organized the event", height=80)
-    speakers = st.text_area("Speakers/Instructors*", placeholder="Names of speakers/instructors who conducted the event", height=80)
-    
-    submit = st.form_submit_button("✨ Generate Post-Event Content", use_container_width=True)
+    submit = st.form_submit_button("✨ Generate All Social Media Content", use_container_width=True)
 
 if submit:
     if not api_key:
-        st.error("🔑 Please provide your Groq API Key.")
-    elif uploaded_file is None:
-        st.error("📄 Please upload an event report document.")
-    elif not all([title, attendance, platform, acm_head, organizing_team, speakers]):
-        st.warning("⚠️ Please fill all required fields marked with *")
+        st.error("🔑 Please provide your Groq API Key in the sidebar.")
+    elif not all([people_to_thank, signature]):
+        st.warning("⚠️ Please fill out both the 'Whom to Thank' and 'Signature' fields.")
     else:
-        # Prepare data
-        data = {
-            "title": title,
-            "date": date.strftime("%d %B %Y"),
-            "attendance": attendance,
-            "platform": platform,
-            "organizing_team": organizing_team,
-            "speakers": speakers,
-            "acm_head": acm_head
-        }
-
-        # Generate content for each platform
-        platforms = {
-            "LinkedIn": build_linkedin_post_event_prompt,
-            "WhatsApp": build_whatsapp_post_event_prompt,
-            "Instagram": build_instagram_post_event_prompt,
-            "Twitter": build_twitter_post_event_prompt
-        }
-        
+        data = {"people_to_thank": people_to_thank, "signature": signature}
         results = {}
         
-        with st.spinner("🤖 Generating post-event content using Groq API..."):
-            for platform_name, prompt_builder in platforms.items():
-                try:
-                    prompt = prompt_builder(data, report_content, use_roberta)
-                    result = call_groq_api(api_key, prompt)
-                    # Special handling for Twitter character limit
-                    if platform_name == "Twitter" and len(result) > TWITTER_CHAR_LIMIT:
-                        result = result[:TWITTER_CHAR_LIMIT - 3] + "..."
-                    
-                    results[platform_name] = result
-                    
-                except Exception as e:
-                    results[platform_name] = f"⚠️ Error generating content: {str(e)}"
+        with st.spinner("🤖 Generating and refining professional social media content..."):
+            results["LinkedIn"] = call_groq_api_with_refinement(api_key, build_linkedin_post_event_prompt(data, report_content), "LinkedIn")
+            results["Instagram"] = call_groq_api_with_refinement(api_key, build_instagram_whatsapp_prompt("Instagram", data, report_content), "Instagram")
+            results["WhatsApp"] = call_groq_api_with_refinement(api_key, build_instagram_whatsapp_prompt("WhatsApp", data, report_content), "WhatsApp")
+            results["Twitter"] = call_groq_api_with_refinement(api_key, build_twitter_prompt(data, report_content), "Twitter")
 
-        # Display results
-        st.success("🎉 Post-event content generated successfully!")
-        
-        # Create tabs for each platform
-        tab1, tab2, tab3, tab4 = st.tabs(["📱 LinkedIn", "💬 WhatsApp", "📸 Instagram", "🐦 Twitter (X)"])
-        
-        with tab1:
-            st.subheader("📱 LinkedIn Post-Event Content")
-            st.text_area("", value=results["LinkedIn"], height=500, key="linkedin_post")
-            st.download_button(
-                label="📥 Download LinkedIn Content",
-                data=results["LinkedIn"],
-                file_name=f"linkedin_post_event_{title.replace(' ', '_')}.txt",
-                mime="text/plain"
-            )
-        
-        with tab2:
-            st.subheader("💬 WhatsApp Post-Event Content")
-            st.text_area("", value=results["WhatsApp"], height=400, key="whatsapp_post")
-            st.download_button(
-                label="📥 Download WhatsApp Content",
-                data=results["WhatsApp"],
-                file_name=f"whatsapp_post_event_{title.replace(' ', '_')}.txt",
-                mime="text/plain"
-            )
-        
-        with tab3:
-            st.subheader("📸 Instagram Post-Event Content")
-            st.text_area("", value=results["Instagram"], height=400, key="instagram_post")
-            st.download_button(
-                label="📥 Download Instagram Content",
-                data=results["Instagram"],
-                file_name=f"instagram_post_event_{title.replace(' ', '_')}.txt",
-                mime="text/plain"
-            )
-        
-        with tab4:
-            st.subheader("🐦 Twitter (X) Post-Event Content")
-            char_count = len(results["Twitter"])
-            if char_count > TWITTER_CHAR_LIMIT:
-                st.error(f"⚠️ Content is {char_count} characters (limit: {TWITTER_CHAR_LIMIT})")
-            else:
-                st.success(f"✅ Character count: {char_count}/{TWITTER_CHAR_LIMIT}")
+        if any(results.values()):
+            st.success("🎉 Content generated successfully!")
+            tab1, tab2, tab3, tab4 = st.tabs(["📱 LinkedIn", "📸 Instagram", "💬 WhatsApp", "🐦 Twitter (X)"])
             
-            st.text_area("", value=results["Twitter"], height=200, key="twitter_post")
-            st.download_button(
-                label="📥 Download Twitter Content",
-                data=results["Twitter"],
-                file_name=f"twitter_post_event_{title.replace(' ', '_')}.txt",
-                mime="text/plain"
-            )
-
-# Instructions
-st.markdown("---")
-st.header("📝 Instructions")
-st.markdown("""
-1. **Upload** your event report DOCX file
-2. **Enter** additional event details in the form
-3. **Generate** content for all social media platforms
-4. **Download** individual platform content as needed
-
-**Report Format Expected:**
-- Event overview and what happened
-- Topics covered during the event
-- Attendance and participation details
-- Resources shared (if any)
-- Overall event success metrics
-""")
-
-# Footer
-st.markdown("---")
+            with tab1:
+                st.subheader("LinkedIn Post")
+                st.text_area("LinkedIn Content", value=results.get("LinkedIn", ""), height=500, key="linkedin_post")
+            with tab2:
+                st.subheader("Instagram Caption")
+                st.text_area("Instagram Content", value=results.get("Instagram", ""), height=400, key="instagram_post")
+            with tab3:
+                st.subheader("WhatsApp Message")
+                st.text_area("WhatsApp Content", value=results.get("WhatsApp", ""), height=400, key="whatsapp_post")
+            with tab4:
+                st.subheader("Twitter (X) Post")
+                tweet = results.get("Twitter", "")
+                st.text_area("Twitter Content", value=tweet, height=200, key="twitter_post")
+                st.caption(f"Character count: {len(tweet)} / {TWITTER_CHAR_LIMIT}")
