@@ -151,7 +151,6 @@ def create_docx_report(report_data, analysis, analyzer):
     # Professionalize event details
     event_name = report_data.get('event_name', '')
     event_venue = report_data.get('event_venue', '')
-    #prepared_by = safe_professionalize(report_data.get('prepared_by', ''))
 
     # Add title
     title = doc.add_paragraph()
@@ -172,21 +171,35 @@ def create_docx_report(report_data, analysis, analyzer):
     if report_data.get('event_time'):
         add_markdown_paragraph(doc, f"**Time:** {report_data['event_time']}", font_size=11, indent=Inches(0.5))
 
-    add_markdown_paragraph(doc, f"**Total Attendees:** {report_data.get('total_attendees', 0)}", font_size=11, indent=Inches(0.5))
+    add_markdown_paragraph(doc, f"**Total Attendees:** {report_data.get('total_attendees', 'N/A')}", font_size=11, indent=Inches(0.5))
     add_markdown_paragraph(
         doc,
-        f"**Attendee Breakdown:** Students ({report_data.get('students', 0)}), Faculty ({report_data.get('faculty', 0)}), Guests ({report_data.get('guests', 0)})",
+        f"**Attendee Breakdown:** Students ({report_data.get('students', '0')}), Faculty ({report_data.get('faculty', '0')}), Guests ({report_data.get('guests', '0')})",
         font_size=11, indent=Inches(0.5)
     )
 
+    # ** CORRECTION STARTS HERE **
     # Attendance chart
-    if report_data['students'] + report_data['faculty'] + report_data['guests'] > 0:
+    # Helper function to safely parse the first integer from a string like '50+' or 'Around 100'
+    def _parse_num(s):
+        # Find all sequences of digits in the string
+        nums = re.findall(r'\d+', str(s))
+        # Return the first number found, or 0 if no numbers are found
+        return int(nums[0]) if nums else 0
+
+    students_num = _parse_num(report_data.get('students', '0'))
+    faculty_num = _parse_num(report_data.get('faculty', '0'))
+    guests_num = _parse_num(report_data.get('guests', '0'))
+    
+    # Check the sum of parsed numbers to decide if a chart should be created
+    if students_num + faculty_num + guests_num > 0:
         attendance_chart = create_attendance_chart(
-            report_data['students'],
-            report_data['faculty'],
-            report_data['guests']
+            report_data.get('students', '0'),
+            report_data.get('faculty', '0'),
+            report_data.get('guests', '0')
         )
         add_chart(doc, attendance_chart, "Figure 1: Attendee Breakdown")
+    # ** CORRECTION ENDS HERE **
     add_horizontal_line(doc)
 
     # Section 2: Topics Covered
@@ -247,7 +260,14 @@ def create_docx_report(report_data, analysis, analyzer):
     # Section 4: Challenges & Solutions
     if report_data.get('challenges') or report_data.get('solutions'):
         add_heading(doc, "⚠️ Challenges Faced and Solutions", level=1)
-        for i, (ch, sol) in enumerate(zip(report_data['challenges'], report_data['solutions'])):
+        # Ensure challenges and solutions are of the same length for zipping
+        challenges = report_data.get('challenges', [])
+        solutions = report_data.get('solutions', [])
+        max_len = max(len(challenges), len(solutions))
+        challenges.extend([''] * (max_len - len(challenges)))
+        solutions.extend([''] * (max_len - len(solutions)))
+
+        for i, (ch, sol) in enumerate(zip(challenges, solutions)):
             prof_ch = safe_professionalize(ch)
             prof_sol = safe_professionalize(sol)
             if prof_ch or prof_sol:
@@ -262,40 +282,27 @@ def create_docx_report(report_data, analysis, analyzer):
     # Section 5: Suggestions
     add_heading(doc, "✨ Suggestions for Future Events", level=1)
     suggestions = analysis.get("suggestions", "No suggestions available")
-    print(suggestions)
     add_bullet_list_with_headings(doc, suggestions, indent=Inches(0.75))
     add_horizontal_line(doc)
 
     # Section 6: Special Mentions
-    if report_data['special_mentions'] or report_data['relevant_links']:
+    if report_data.get('special_mentions') or report_data.get('relevant_links'):
         add_heading(doc, "🌟 Special Mentions & Links", level=1)
         
-        if report_data['special_mentions']:
+        if report_data.get('special_mentions'):
             add_bullet_list(doc, report_data['special_mentions'], heading="Acknowledgements", indent=Inches(0.75))
         
-        if report_data['relevant_links']:
+        if report_data.get('relevant_links'):
             add_bullet_list(doc, report_data['relevant_links'], heading="Relevant Resources", indent=Inches(0.75))
         add_horizontal_line(doc)
 
-    # Detailed sentiment analysis
-    # if sentiment_data and sentiment_data.get('detailed_analysis'):
-    #     doc.add_page_break()
-    #     add_heading(doc, "Detailed Sentiment Analysis", level=1)
-    #     add_paragraph(doc, "Individual feedback sentiment analysis:", font_size=11)
-        
-    #     for i, item in enumerate(sentiment_data['detailed_analysis'][:50]):  # Limit to first 50
-    #         add_paragraph(doc, f"Feedback {i+1}:", bold=True, font_size=11)
-    #         add_paragraph(doc, f"Text: {item.get('feedback', '')}", font_size=11)
-    #         add_paragraph(doc, f"Sentiment: {item.get('sentiment', '')} (Confidence: {item.get('confidence', 0):.2f})", font_size=11)
-    #         doc.add_paragraph()
-
     # Footer
-    # doc.add_page_break()
-    # add_heading(doc, "✍️ Report Prepared By", level=1)
-    # if prepared_by:
-    #     add_paragraph(doc, f"Name: {prepared_by}", font_size=12, indent=Inches(0.75))
-    # if report_data.get('report_date'):
-    #     add_paragraph(doc, f"Date: {report_data['report_date']}", font_size=12, indent=Inches(0.75))
+    prepared_by = report_data.get('prepared_by')
+    if prepared_by:
+        add_heading(doc, "✍️ Report Prepared By", level=1)
+        add_paragraph(doc, f"Name: {prepared_by}", font_size=12, indent=Inches(0.75))
+    if report_data.get('report_date'):
+        add_paragraph(doc, f"Date: {report_data['report_date']}", font_size=12, indent=Inches(0.75))
 
     # Save DOCX
     doc_bytes = BytesIO()

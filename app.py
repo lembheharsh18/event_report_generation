@@ -1,10 +1,14 @@
 import streamlit as st
-from charts import create_attendance_chart,create_sentiment_chart,create_word_frequency_chart
-import streamlit as st
+from charts import create_sentiment_chart
 import pandas as pd
 import matplotlib.pyplot as plt
 from analyzer import FeedbackAnalyzer
 from report_generator import create_docx_report
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 def display_analysis_results(analysis):
     """Display analysis results in Streamlit"""
@@ -88,16 +92,21 @@ def main():
     if "analysis" not in st.session_state:
         st.session_state.analysis = {}
     
+    # Get API key from environment
+    groq_api_key = os.getenv("GROQ_API_KEY")
+    if not groq_api_key:
+        st.error("⚠️ GROQ_API_KEY not found in environment variables. Please add it to your .env file.")
+        st.stop()
+    
     # Sidebar configuration
     with st.sidebar:
         st.header("⚙️ Configuration")
-        groq_api_key = st.text_input("Groq API Key", type="password", help="Required for AI-powered analysis")
         use_roberta = st.checkbox("Use RoBERTa for sentiment analysis (more accurate)")
         st.divider()
         
         st.header("📤 Data Import")
         feedback_option = st.radio("Feedback Input Method", 
-                                  ["Upload CSV", "Manual Input"])
+                                   ["Upload CSV", "Manual Input"])
         feedback_list = []
         
         if feedback_option == "Upload CSV":
@@ -133,7 +142,7 @@ def main():
         
         else:  # Manual Input
             num_entries = st.number_input("Number of Feedback Entries", 
-                                         min_value=1, max_value=50, value=5, step=1)
+                                          min_value=1, max_value=50, value=5, step=1)
             for i in range(num_entries):
                 feedback = st.text_input(f"Feedback #{i+1}", key=f"fb_{i}")
                 if feedback:
@@ -144,24 +153,30 @@ def main():
         event_name = st.text_input("Event Name")
         col1, col2 = st.columns(2)
         event_date = col1.date_input("Date")
-        event_time = col2.time_input("Time")
+        
+        # Time range input
+        st.subheader("Event Time")
+        time_col1, time_col2 = st.columns(2)
+        start_time = time_col1.time_input("Start Time")
+        end_time = time_col2.time_input("End Time")
+        
         event_venue = st.text_input("Venue")
         
-        st.subheader("Attendance")
-        total_attendees = st.number_input("Total Attendees", min_value=0, step=1)
+        st.subheader("Attendance (Approximate)")
+        total_attendees = st.text_input("Total Attendees (e.g., '50+', 'Around 100', '75-80')", placeholder="e.g., 50+")
         col1, col2, col3 = st.columns(3)
-        students = col1.number_input("Students", min_value=0, step=1)
-        faculty = col2.number_input("Faculty", min_value=0, step=1)
-        guests = col3.number_input("Guests", min_value=0, step=1)
+        students = col1.text_input("Students (e.g., '30+', 'Around 25')", placeholder="e.g., 30+")
+        faculty = col2.text_input("Faculty (e.g., '10+', 'Around 15')", placeholder="e.g., 10+")
+        guests = col3.text_input("Guests (e.g., '5+', 'Around 10')", placeholder="e.g., 5+")
         
         st.subheader("Topics Covered")
         topics = st.text_area("Enter topics (one per line)", 
-                            value="Topic 1\nTopic 2\nTopic 3",
-                            height=100).split("\n")
+                              placeholder="Topic 1\nTopic 2\nTopic 3",
+                              height=100)
         
         st.subheader("Challenges & Solutions")
         num_challenges = st.number_input("Number of Challenges", 
-                                       min_value=0, max_value=5, value=1, step=1)
+                                         min_value=0, max_value=5, value=1, step=1)
         challenges = []
         solutions = []
         
@@ -169,48 +184,90 @@ def main():
             st.write(f"Challenge {i+1}")
             challenge = st.text_input(f"Description {i+1}", key=f"ch_{i}")
             solution = st.text_input(f"Solution {i+1}", key=f"sol_{i}")
-            challenges.append(challenge)
-            solutions.append(solution)
+            if challenge:  # Only add if not empty
+                challenges.append(challenge)
+            if solution:  # Only add if not empty
+                solutions.append(solution)
         
         st.subheader("Special Mentions")
         special_mentions = st.text_area("People to acknowledge (one per line)", 
-                                      height=80).split("\n")
+                                        height=80, placeholder="Name 1\nName 2")
         
         st.subheader("Additional Information")
         relevant_links = st.text_area("Relevant Links (one per line)", 
-                                    value="https://example.com/photos\nhttps://example.com/recording",
-                                    height=80).split("\n")
+                                      placeholder="https://example.com/photos\nhttps://example.com/recording",
+                                      height=80)
         prepared_by = st.text_input("Prepared By")
         report_date = st.date_input("Report Date")
         
         # Save event details
         if st.button("💾 Save Event Details"):
-            st.session_state.report_data = {
-                "event_name": event_name,
-                "event_date": event_date.strftime("%B %d, %Y") if event_date else "",
-                "event_venue": event_venue,
-                "event_time": event_time.strftime("%I:%M %p") if event_time else "",
-                "total_attendees": total_attendees,
-                "students": students,
-                "faculty": faculty,
-                "guests": guests,
-                "topics": [t.strip() for t in topics if t.strip()],
-                "challenges": challenges,
-                "solutions": solutions,
-                "special_mentions": [m.strip() for m in special_mentions if m.strip()],
-                "relevant_links": [l.strip() for l in relevant_links if l.strip()],
-                "prepared_by": prepared_by,
-                "report_date": report_date.strftime("%B %d, %Y") if report_date else ""
-            }
+            # Create time range string
+            time_range = ""
+            if start_time and end_time:
+                time_range = f"{start_time.strftime('%I:%M %p')} - {end_time.strftime('%I:%M %p')}"
+            elif start_time:
+                time_range = start_time.strftime('%I:%M %p')
+            elif end_time:
+                time_range = f"Until {end_time.strftime('%I:%M %p')}"
+            
+            # Process topics
+            topics_list = []
+            if topics.strip():
+                topics_list = [t.strip() for t in topics.split("\n") if t.strip()]
+            
+            # Process special mentions
+            mentions_list = []
+            if special_mentions.strip():
+                mentions_list = [m.strip() for m in special_mentions.split("\n") if m.strip()]
+            
+            # Process relevant links
+            links_list = []
+            if relevant_links.strip():
+                links_list = [l.strip() for l in relevant_links.split("\n") if l.strip()]
+            
+            # Only include non-empty fields in report data
+            report_data = {}
+            
+            if event_name.strip():
+                report_data["event_name"] = event_name.strip()
+            if event_date:
+                report_data["event_date"] = event_date.strftime("%B %d, %Y")
+            if event_venue.strip():
+                report_data["event_venue"] = event_venue.strip()
+            if time_range:
+                report_data["event_time"] = time_range
+            
+            # ** CORRECTION STARTS HERE **
+            # Always include attendance fields to prevent KeyErrors, defaulting to '0' if empty.
+            if total_attendees.strip():
+                report_data["total_attendees"] = total_attendees.strip()
+            report_data["students"] = students.strip() or "0"
+            report_data["faculty"] = faculty.strip() or "0"
+            report_data["guests"] = guests.strip() or "0"
+            # ** CORRECTION ENDS HERE **
+            
+            if topics_list:
+                report_data["topics"] = topics_list
+            if challenges:
+                report_data["challenges"] = challenges
+            if solutions:
+                report_data["solutions"] = solutions
+            if mentions_list:
+                report_data["special_mentions"] = mentions_list
+            if links_list:
+                report_data["relevant_links"] = links_list
+            if prepared_by.strip():
+                report_data["prepared_by"] = prepared_by.strip()
+            if report_date:
+                report_data["report_date"] = report_date.strftime("%B %d, %Y")
+            
+            st.session_state.report_data = report_data
             st.success("Event details saved!")
     
     # Analysis and report generation
     if not feedback_list:
         st.warning("Please add feedback data to analyze")
-        st.stop()
-        
-    if not groq_api_key:
-        st.warning("Please enter your Groq API key in the sidebar")
         st.stop()
     
     # Analysis buttons
@@ -247,9 +304,7 @@ def main():
                 st.download_button(
                     label="📥 Download DOCX Report",
                     data=docx_bytes,
-                    file_name=f"{st.session_state.report_data['event_name'].replace(' ', '_')}_report.docx" 
-                              if st.session_state.report_data.get('event_name') 
-                              else "event_report.docx",
+                    file_name=f"{st.session_state.report_data.get('event_name', 'event').replace(' ', '_')}_report.docx",
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     use_container_width=True
                 )
