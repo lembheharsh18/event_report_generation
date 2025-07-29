@@ -167,7 +167,7 @@ Tweet MUST include:
 - A short, celebratory wrap-up message.
 - Mention of event title and date.
 - Thank-you note to the organizing team and speakers.
-- ~25-character Instagram post link included in this format: (📸 See more: https://shorturl.at/XXXX)
+- ~25-character Instagram post link included in this format: (📸 See more: https://shorturl.at/XXXXX)
 - Hashtags: 
 - The tone should be energetic, club-friendly, and tweet-length conscious.
 - The total character count (including hashtags and link) MUST be <= {TWITTER_CHAR_LIMIT}.
