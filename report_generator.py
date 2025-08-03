@@ -154,7 +154,7 @@ def create_docx_report(report_data, analysis, analyzer):
 
     # Add title
     title = doc.add_paragraph()
-    title_run = title.add_run(f"Event Report: {event_name}")
+    title_run = title.add_run(f"{event_name}")
     title_run.font.size = Pt(20)
     title_run.bold = True
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -165,7 +165,7 @@ def create_docx_report(report_data, analysis, analyzer):
     if event_name:
         add_markdown_paragraph(doc, f"**Event Name:** {event_name}", font_size=11, indent=Inches(0.5))
     if report_data.get('event_date'):
-        add_markdown_paragraph(doc, f"**Date:** {report_data['event_date']}", font_size=11, indent=Inches(0.5))
+        add_markdown_paragraph(doc, f"**Date(s):** {report_data['event_date']}", font_size=11, indent=Inches(0.5))
     if event_venue:
         add_markdown_paragraph(doc, f"**Venue:** {event_venue}", font_size=11, indent=Inches(0.5))
     if report_data.get('event_time'):
@@ -178,28 +178,20 @@ def create_docx_report(report_data, analysis, analyzer):
         font_size=11, indent=Inches(0.5)
     )
 
-    # ** CORRECTION STARTS HERE **
-    # Attendance chart
-    # Helper function to safely parse the first integer from a string like '50+' or 'Around 100'
-    def _parse_num(s):
-        # Find all sequences of digits in the string
-        nums = re.findall(r'\d+', str(s))
-        # Return the first number found, or 0 if no numbers are found
-        return int(nums[0]) if nums else 0
-
-    students_num = _parse_num(report_data.get('students', '0'))
-    faculty_num = _parse_num(report_data.get('faculty', '0'))
-    guests_num = _parse_num(report_data.get('guests', '0'))
-    
-    # Check the sum of parsed numbers to decide if a chart should be created
-    if students_num + faculty_num + guests_num > 0:
-        attendance_chart = create_attendance_chart(
-            report_data.get('students', '0'),
-            report_data.get('faculty', '0'),
-            report_data.get('guests', '0')
-        )
-        add_chart(doc, attendance_chart, "Figure 1: Attendee Breakdown")
-    # ** CORRECTION ENDS HERE **
+    # Attendance chart (currently commented out as per user request)
+    # def _parse_num(s):
+    #     nums = re.findall(r'\d+', str(s))
+    #     return int(nums[0]) if nums else 0
+    # students_num = _parse_num(report_data.get('students', '0'))
+    # faculty_num = _parse_num(report_data.get('faculty', '0'))
+    # guests_num = _parse_num(report_data.get('guests', '0'))
+    # if students_num + faculty_num + guests_num > 0:
+    #     attendance_chart = create_attendance_chart(
+    #         students_num,
+    #         faculty_num,
+    #         guests_num
+    #     )
+    #     add_chart(doc, attendance_chart, "Figure 1: Attendee Breakdown")
     add_horizontal_line(doc)
 
     # Section 2: Topics Covered
@@ -209,7 +201,8 @@ def create_docx_report(report_data, analysis, analyzer):
         prof_topics = [t for t in prof_topics if t]
         if prof_topics:
             for t in prof_topics:
-                add_markdown_paragraph(doc, f"**{t}**", font_size=11, indent=Inches(0.5))
+                # Added an emoji and bolding for each topic
+                add_markdown_paragraph(doc, f"🔹 **{t}**", font_size=11, indent=Inches(0.5))
         else:
             add_paragraph(doc, "No valid topics recorded", italic=True, indent=Inches(0.5))
     else:
@@ -285,15 +278,19 @@ def create_docx_report(report_data, analysis, analyzer):
     add_bullet_list_with_headings(doc, suggestions, indent=Inches(0.75))
     add_horizontal_line(doc)
 
-    # Section 6: Special Mentions
+    # Section 6: Special Mentions & Links
     if report_data.get('special_mentions') or report_data.get('relevant_links'):
         add_heading(doc, "🌟 Special Mentions & Links", level=1)
         
         if report_data.get('special_mentions'):
-            add_bullet_list(doc, report_data['special_mentions'], heading="Acknowledgements", indent=Inches(0.75))
+            # Replaced add_bullet_list_with_headings to prevent default "suggestions" text
+            add_heading(doc, "Acknowledgements", level=2, indent=Inches(0.5))
+            professional_mentions = analyzer._professionalize_mentions(report_data['special_mentions'])
+            mention_items = professional_mentions.splitlines()
+            add_bullet_list(doc, mention_items, heading=None, indent=None, bullet_indent=Inches(0.75))
         
         if report_data.get('relevant_links'):
-            add_bullet_list(doc, report_data['relevant_links'], heading="Relevant Resources", indent=Inches(0.75))
+            add_bullet_list(doc, report_data.get('relevant_links', []), heading="**Relevant Resources**", indent=Inches(0.5), bullet_indent=Inches(0.75))
         add_horizontal_line(doc)
 
     # Footer

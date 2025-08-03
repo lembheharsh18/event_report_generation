@@ -152,7 +152,11 @@ def main():
     with st.expander("📋 Event Details", expanded=True):
         event_name = st.text_input("Event Name")
         col1, col2 = st.columns(2)
-        event_date = col1.date_input("Date")
+        
+        # ** CORRECTION STARTS HERE **
+        # 1. Make date input as string
+        event_date = col1.text_input("Event Date(s)", placeholder="e.g., March 16-18, 2024 or 25th Dec 2024")
+        # ** CORRECTION ENDS HERE **
         
         # Time range input
         st.subheader("Event Time")
@@ -162,12 +166,15 @@ def main():
         
         event_venue = st.text_input("Venue")
         
+        # ** CORRECTION STARTS HERE **
+        # 2. Make attendance input also as string (Already string, no change needed here)
         st.subheader("Attendance (Approximate)")
         total_attendees = st.text_input("Total Attendees (e.g., '50+', 'Around 100', '75-80')", placeholder="e.g., 50+")
         col1, col2, col3 = st.columns(3)
         students = col1.text_input("Students (e.g., '30+', 'Around 25')", placeholder="e.g., 30+")
         faculty = col2.text_input("Faculty (e.g., '10+', 'Around 15')", placeholder="e.g., 10+")
         guests = col3.text_input("Guests (e.g., '5+', 'Around 10')", placeholder="e.g., 5+")
+        # ** CORRECTION ENDS HERE **
         
         st.subheader("Topics Covered")
         topics = st.text_area("Enter topics (one per line)", 
@@ -189,9 +196,12 @@ def main():
             if solution:  # Only add if not empty
                 solutions.append(solution)
         
+        # ** CORRECTION STARTS HERE **
+        # 3. In special mentions ask to llm to professionalize it (Input is now a single text area)
         st.subheader("Special Mentions")
-        special_mentions = st.text_area("People to acknowledge (one per line)", 
-                                        height=80, placeholder="Name 1\nName 2")
+        special_mentions = st.text_area("People to acknowledge (one per line or as notes)", 
+                                        height=80, placeholder="Harsh for mentoring\nPrathamesh for attending as chief guest\nPICT for providing opportunity")
+        # ** CORRECTION ENDS HERE **
         
         st.subheader("Additional Information")
         relevant_links = st.text_area("Relevant Links (one per line)", 
@@ -216,11 +226,6 @@ def main():
             if topics.strip():
                 topics_list = [t.strip() for t in topics.split("\n") if t.strip()]
             
-            # Process special mentions
-            mentions_list = []
-            if special_mentions.strip():
-                mentions_list = [m.strip() for m in special_mentions.split("\n") if m.strip()]
-            
             # Process relevant links
             links_list = []
             if relevant_links.strip():
@@ -231,21 +236,21 @@ def main():
             
             if event_name.strip():
                 report_data["event_name"] = event_name.strip()
-            if event_date:
-                report_data["event_date"] = event_date.strftime("%B %d, %Y")
+            # ** CORRECTION STARTS HERE **
+            if event_date.strip():
+                report_data["event_date"] = event_date.strip()
+            # ** CORRECTION ENDS HERE **
             if event_venue.strip():
                 report_data["event_venue"] = event_venue.strip()
             if time_range:
                 report_data["event_time"] = time_range
             
-            # ** CORRECTION STARTS HERE **
             # Always include attendance fields to prevent KeyErrors, defaulting to '0' if empty.
             if total_attendees.strip():
                 report_data["total_attendees"] = total_attendees.strip()
             report_data["students"] = students.strip() or "0"
             report_data["faculty"] = faculty.strip() or "0"
             report_data["guests"] = guests.strip() or "0"
-            # ** CORRECTION ENDS HERE **
             
             if topics_list:
                 report_data["topics"] = topics_list
@@ -253,8 +258,11 @@ def main():
                 report_data["challenges"] = challenges
             if solutions:
                 report_data["solutions"] = solutions
-            if mentions_list:
-                report_data["special_mentions"] = mentions_list
+            # ** CORRECTION STARTS HERE **
+            # Save the raw string of special mentions
+            if special_mentions.strip():
+                report_data["special_mentions"] = special_mentions.strip()
+            # ** CORRECTION ENDS HERE **
             if links_list:
                 report_data["relevant_links"] = links_list
             if prepared_by.strip():

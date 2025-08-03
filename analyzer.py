@@ -146,6 +146,42 @@ TEXT:
             st.error(f"Error professionalizing text: {e}")
             return text.strip()
 
+    # ** CORRECTION STARTS HERE **
+    def _professionalize_mentions(self, mentions_text):
+        """Use LLM to rewrite a list of mentions into a professional bulleted list."""
+        if not mentions_text.strip() or not self.model:
+            return "- " + "\n- ".join(mentions_text.splitlines())
+
+        prompt = f"""
+You are a business writing assistant for a club's event report.
+The following are raw notes for the "Special Mentions" section.
+Rewrite them into a formal, professional bulleted list suitable for a report.
+- For each person or entity, create a separate bullet point.
+- Start each bullet point with '- '.
+- Ensure the tone is appreciative and formal.
+- Do not add any introductory or concluding sentences. Return ONLY the bulleted list.
+
+For example, if the input is "Harsh for mentoring, Prathamesh for attending as chief guest, PICT for providing opportunity", the output should be:
+- Acknowledging Harsh for his valuable mentorship.
+- Special thanks to Prathamesh for gracing the event as the chief guest.
+- Gratitude to PICT for providing this opportunity.
+
+RAW NOTES:
+{mentions_text.strip()}
+"""
+        try:
+            response = self.model.chat.completions.create(
+                model="llama3-70b-8192",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.4
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            st.error(f"Error professionalizing mentions: {e}")
+            # Fallback to a simple bulleted list
+            return "- " + "\n- ".join(mentions_text.strip().splitlines())
+    # ** CORRECTION ENDS HERE **
+    
     def _perform_sentiment_analysis(self, feedback_list):
         sentiments = {"positive": 0, "negative": 0, "neutral": 0, "scores": [], "detailed_analysis": []}
         
@@ -186,15 +222,18 @@ TEXT:
             blob = TextBlob(feedback)
             textblob_polarity = blob.sentiment.polarity
 
-            if vader_scores['compound'] >= 0.05 or textblob_polarity > 0.1:
+            # ** CORRECTION STARTS HERE **
+            # Make thresholds stricter to classify weakly positive/negative comments (potentially sarcastic) as neutral.
+            if vader_scores['compound'] >= 0.4 and textblob_polarity > 0.2:
                 sentiment = "positive"
                 sentiments["positive"] += 1
-            elif vader_scores['compound'] <= -0.05 or textblob_polarity < -0.1:
+            elif vader_scores['compound'] <= -0.4 or textblob_polarity < -0.2:
                 sentiment = "negative"
                 sentiments["negative"] += 1
             else:
                 sentiment = "neutral"
                 sentiments["neutral"] += 1
+            # ** CORRECTION ENDS HERE **
 
             sentiments["scores"].append({
                 "text": feedback,
@@ -211,13 +250,13 @@ TEXT:
 
         total = len(feedback_list)
         sentiments["percentages"] = {
-            "positive": (sentiments["positive"] / total) * 100,
-            "negative": (sentiments["negative"] / total) * 100,
-            "neutral": (sentiments["neutral"] / total) * 100
+            "positive": (sentiments["positive"] / total) * 100 if total > 0 else 0,
+            "negative": (sentiments["negative"] / total) * 100 if total > 0 else 0,
+            "neutral": (sentiments["neutral"] / total) * 100 if total > 0 else 0
         }
         sentiments["overall_score"] = round(
             (1 * sentiments["positive"] + 0 * sentiments["neutral"] + (-1) * sentiments["negative"]) / total, 2
-        )
+        ) if total > 0 else 0
 
         return sentiments
 
