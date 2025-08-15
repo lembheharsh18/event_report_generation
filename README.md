@@ -31,7 +31,6 @@ A comprehensive Streamlit-based application for generating professional event re
 ### Prerequisites
 - Python 3.8+
 - Groq API key for AI content generation
-- OpenAI API key (optional, for additional AI features)
 
 ### Setup
 ```bash
@@ -56,12 +55,10 @@ python -m nltk.downloader stopwords
 
 1. **Get API Keys**:
    - **Groq API Key**: Sign up at [Groq Console](https://console.groq.com/)
-   - **OpenAI API Key** (optional): Sign up at [OpenAI Platform](https://platform.openai.com/)
 
 2. **Environment Variables** (optional):
    ```bash
    export GROQ_API_KEY="your_groq_api_key_here"
-   export OPENAI_API_KEY="your_openai_api_key_here"
    ```
 
 ## 🚀 Usage
@@ -148,7 +145,6 @@ event_report_generation/
 
 ### **AI and NLP**
 - `groq` - AI content generation API
-- `openai` - Additional AI capabilities
 - `transformers` - Advanced NLP models
 - `torch` - Deep learning framework
 - `nltk` - Natural language processing
@@ -199,50 +195,6 @@ event_report_generation/
 - **Scalable**: Supports multiple concurrent users
 - **Caching**: Intelligent caching for improved performance
 
-## 🤝 Contributing
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
 
-### **Development Setup**
-```bash
-# Install development dependencies
-pip install -r requirements.txt
-pip install black flake8 pytest
 
-# Run linting
-black .
-flake8 .
-
-# Run tests
-pytest
-```
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🆘 Support
-
-If you encounter any issues or have questions:
-- Check the [Issues](https://github.com/yourusername/event_report_generation/issues) page
-- Create a new issue with detailed description
-- Include error messages and system information
-- Provide steps to reproduce the issue
-
-## 🙏 Acknowledgments
-
-- Built with [Streamlit](https://streamlit.io/)
-- AI content generation powered by [Groq](https://groq.com/)
-- Additional AI capabilities from [OpenAI](https://openai.com/)
-- Community contributors and feedback
-- Open source libraries and tools
-
----
-
-**Made with ❤️ for event organizers and social media managers**
-
-*Empowering events with AI-driven insights and professional content generation*
